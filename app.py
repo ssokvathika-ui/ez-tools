@@ -164,6 +164,8 @@ class YouTubeDownloader:
                 self.yt_dlp_path,
                 "-f", format_id,
                 "--get-url",
+                "--add-header", "Referer:https://www.youtube.com/",
+                "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 "--no-cache-dir",  # Don't use cached data
                 f"--add-header", "Cache-Control:no-cache",
                 url
