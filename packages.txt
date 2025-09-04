@@ -1,4 +1,2 @@
 ffmpeg
 yt-dlp
-streamlit
-requests
