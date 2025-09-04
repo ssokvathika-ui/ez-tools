@@ -84,41 +84,54 @@ class YouTubeDownloader:
         self.ffmpeg_path = ffmpeg_path
     
     def get_video_info(self, url: str) -> Dict:
-        """Get video information with caching"""
-        cache_key = hashlib.md5(url.encode()).hexdigest()
-        cache_file = os.path.join(Config.OUTPUT_DIR, "cache", f"{cache_key}.json")
-        
-        # Check if cached
-        if os.path.exists(cache_file):
-            try:
-                with open(cache_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except:
-                pass
-        
-        # Fetch fresh data
+       """Get video information with caching and safe subprocess call"""
+       if not url or not is_valid_youtube_url(url):
+        raise ValueError(f"Invalid URL: {url}")
+
+       cache_key = hashlib.md5(url.encode()).hexdigest()
+       cache_file = os.path.join(Config.OUTPUT_DIR, "cache", f"{cache_key}.json")
+
+    # Check cache
+       if os.path.exists(cache_file):
         try:
-            # Use Popen with binary mode to avoid encoding issues
-            process = subprocess.Popen([
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Cache read failed: {e}")
+
+    # Fetch fresh data
+       try:
+            cmd = [
                 self.yt_dlp_path,
-                "-j", url,
-                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-            
+                "-j",
+                url,
+                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "--no-cache-dir"
+            ]
+
+            logger.info(f"Executing: {' '.join(cmd)}")
+
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=False  # ← Critical: prevents shell injection & misparsing
+            )
+
             stdout, stderr = process.communicate(timeout=30)
-            
+
             if process.returncode != 0:
-                raise Exception(f"yt-dlp failed: {stderr.decode('utf-8', errors='ignore')}")
-            
+                error = stderr.decode('utf-8', errors='ignore').strip()
+                raise Exception(f"yt-dlp failed: {error}")
+
             info = json.loads(stdout.decode('utf-8', errors='ignore'))
             
-            # Cache the result
+            # Save to cache
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(info, f, ensure_ascii=False, indent=2)
-                
+
             return info
-            
-        except Exception as e:
+       except Exception as e:
             logger.error(f"Error fetching video info: {e}\n{traceback.format_exc()}")
             raise
     
@@ -154,7 +167,7 @@ class YouTubeDownloader:
                 "--no-cache-dir",  # Don't use cached data
                 f"--add-header", "Cache-Control:no-cache",
                 url
-            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
             
             stdout, stderr = process.communicate(timeout=30)
             
@@ -250,7 +263,7 @@ class YouTubeDownloader:
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                shell=True
+                shell=False
             )
             
             # Wait for completion with timeout
@@ -344,7 +357,7 @@ class YouTubeDownloader:
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                shell=True
+                shell=False
             )
             
             # Wait for completion
